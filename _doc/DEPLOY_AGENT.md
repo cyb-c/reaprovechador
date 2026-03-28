@@ -2,66 +2,51 @@
 
 ## Propósito
 
-Este agente automatiza el despliegue del sitio AstroWind a GitHub Pages, incluyendo:
-- Ejecución del workflow de GitHub Actions
-- Monitoreo del estado del despliegue
-- Reporte de éxitos o fallos con logs detallados
+Automatizar y monitorear el despliegue del sitio AstroWind a GitHub Pages.
 
 ## Ubicación
 
 - **Script del agente**: `.github/workflows/deploy-agent.sh`
 - **Workflow de despliegue**: `.github/workflows/deploy.yml`
 
-## Requisitos Previos
+## ⚠️ Limitación en GitHub Codespaces
 
-1. **GitHub CLI instalado** (`gh`)
-   ```bash
-   # macOS
-   brew install gh
-   
-   # Linux (Debian/Ubuntu)
-   sudo apt install gh
-   
-   # Windows (Chocolatey)
-   choco install gh
-   ```
+El token `GITHUB_TOKEN` en Codespaces **no tiene permisos** para ejecutar workflows manualmente por razones de seguridad.
 
-2. **Autenticación con GitHub**
-   ```bash
-   gh auth login
-   # Selecciona: GitHub.com → HTTPS → Login with a browser
-   ```
-
-3. **Permisos necesarios**
-   - `repo` (acceso completo al repositorio)
-   - `workflow` (ejecutar workflows)
-
-## Uso
-
-### Ejecución Manual
-
-```bash
-cd /workspaces/reaprovechador
-chmod +x .github/workflows/deploy-agent.sh
-.github/workflows/deploy-agent.sh
-```
-
-### Flujo del Agente
+### Flujo de Trabajo Recomendado
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  1. Verificar autenticación con GitHub CLI                  │
-│  2. Verificar que el workflow existe                        │
-│  3. Ejecutar workflow de despliegue                         │
-│  4. Monitorear estado (polling cada 10s, máx 10 min)        │
-│  5a. ÉXITO → Reportar URL del sitio                         │
-│  5b. FALLO → Obtener logs y pasar control al usuario        │
+│  1. Haces cambios en el código                              │
+│  2. git add -A && git commit -m "mensaje" && git push       │
+│  3. El workflow se ejecuta AUTOMÁTICAMENTE                  │
+│  4. Esperas 2-5 minutos                                     │
+│  5. Sitio actualizado en: cyb-c.github.io/reaprovechador    │
 └─────────────────────────────────────────────────────────────┘
+```
+
+## Uso del Agente (Solo Informativo)
+
+El script `deploy-agent.sh` es útil para:
+- Verificar el estado de la autenticación
+- Mostrar la URL del workflow
+- Proporcionar comandos útiles para monitorear el despliegue
+
+### Ejecutar (en entorno local con token adecuado)
+
+```bash
+cd /workspaces/reaprovechador
+.github/workflows/deploy-agent.sh
 ```
 
 ## Comandos Útiles
 
-### Ver estado del último despliegue
+### Ver estado de workflows
+```bash
+gh workflow list --repo cyb-c/reaprovechador
+```
+
+### Ver últimos runs
 ```bash
 gh run list --repo cyb-c/reaprovechador --limit 5
 ```
@@ -71,83 +56,53 @@ gh run list --repo cyb-c/reaprovechador --limit 5
 gh run view --repo cyb-c/reaprovechador --log --latest
 ```
 
-### Re-ejecutar último workflow fallido
+### Ver un run específico
 ```bash
-gh run rerun --repo cyb-c/reaprovechador --failed
+gh run view <RUN_ID> --repo cyb-c/reaprovechador --log
 ```
 
-### Ver workflows disponibles
-```bash
-gh workflow list --repo cyb-c/reaprovechador
-```
+## Deploy Automático
 
-## Integración con el Asistente Principal
+Cada push a la rama `main` dispara automáticamente:
 
-### Cuando el agente detecta un error:
+1. **Build**: `npm install` + `npm run build`
+2. **Deploy**: Sube la carpeta `dist/` a GitHub Pages
+3. **URL**: https://cyb-c.github.io/reaprovechador/
 
-1. **El agente se detiene** y muestra los logs de error
-2. **Pasa el control** al asistente principal (Qwen)
-3. **El usuario** proporciona los logs al asistente
-4. **El asistente** corrige los errores usando la skill `astro-docs`
-5. **El usuario** vuelve a invocar el agente de despliegue
+### Verificar estado del deploy
 
-### Ejemplo de flujo de corrección:
-
-```bash
-# 1. Usuario ejecuta el agente
-./deploy-agent.sh
-
-# 2. Agente reporta error (ej: CSS no carga)
-# [ERROR] El despliegue falló...
-# [INFO] Logs: ...error de build...
-
-# 3. Usuario copia logs y pide ayuda al asistente
-# "El despliegue falló, aquí están los logs: [...]"
-
-# 4. Asistente corrige el error (ej: actualiza config.yaml)
-
-# 5. Usuario hace commit y push
-git add -A && git commit -m "fix: ..." && git push
-
-# 6. Usuario vuelve a ejecutar el agente
-./deploy-agent.sh
-```
-
-## Configuración Personalizable
-
-Edita las variables al inicio del script:
-
-```bash
-REPO="cyb-c/reaprovechador"           # Tu repositorio
-WORKFLOW_NAME="Deploy to GitHub Pages" # Nombre del workflow
-MAX_WAIT_TIME=600                      # Tiempo máximo (segundos)
-CHECK_INTERVAL=10                      # Intervalo de chequeo (segundos)
-```
+1. Ve a: https://github.com/cyb-c/reaprovechador/actions
+2. Click en el workflow más reciente
+3. Espera a que todos los checks estén en ✅
 
 ## Solución de Problemas
 
-### Error: "gh: command not found"
-Instala GitHub CLI (ver Requisitos Previos)
+### El CSS no carga después del deploy
 
-### Error: "authentication required"
-```bash
-gh auth login
+**Causa**: `base` en `config.yaml` no coincide con el nombre del repositorio
+
+**Solución**:
+```yaml
+# src/config.yaml
+site:
+  site: 'https://cyb-c.github.io/reaprovechador'
+  base: '/reaprovechador'  # Debe coincidir con el repo
 ```
 
-### Error: "workflow not found"
-Verifica que `.github/workflows/deploy.yml` existe y se llama "Deploy to GitHub Pages"
+### Workflow falla con error 403
 
-### Error: "resource not accessible by integration"
-El token de GitHub necesita permisos de `repo` y `workflow`
+**Causa**: Token sin permisos (común en Codespaces)
 
-### El despliegue falla consistentemente
-1. Revisa los logs con `gh run view --log --latest`
-2. Verifica que `npm run build` funciona localmente
-3. Consulta la skill `astro-docs` para patrones correctos
+**Solución**: El deploy automático por push SÍ funciona. Solo el trigger manual está bloqueado.
+
+### Build falla
+
+1. Revisa los logs en: https://github.com/cyb-c/reaprovechador/actions
+2. Ejecuta `npm run build` localmente para reproducir el error
+3. Corrige el error y haz push nuevamente
 
 ## Referencias
 
-- [GitHub CLI Documentation](https://cli.github.com/manual/)
-- [GitHub Actions Documentation](https://docs.github.com/en/actions)
+- [GitHub Actions Docs](https://docs.github.com/en/actions)
 - [Astro Deploy Guide](https://docs.astro.build/en/guides/deploy/)
 - Skill: `~/.qwen/skills/astro-docs.md`
