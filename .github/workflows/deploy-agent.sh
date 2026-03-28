@@ -77,7 +77,11 @@ check_workflow() {
 run_workflow() {
     log_info "Ejecutando workflow '${WORKFLOW_NAME}'..."
     
-    RUN_ID=$(gh workflow run ${WORKFLOW_ID} --repo ${REPO} --json id -q '.id')
+    # Ejecutar workflow y obtener el run ID
+    gh workflow run ${WORKFLOW_ID} --repo ${REPO}
+    
+    # Obtener el run ID del último workflow ejecutado
+    RUN_ID=$(gh run list --repo ${REPO} --workflow ${WORKFLOW_ID} --limit 1 --json databaseId -q '.[0].databaseId')
     
     if [ -z "$RUN_ID" ]; then
         log_error "No se pudo ejecutar el workflow"
